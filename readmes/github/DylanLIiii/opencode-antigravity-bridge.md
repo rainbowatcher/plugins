@@ -5,6 +5,9 @@ Gemini、Claude、GPT-OSS 全系可用。
 
 **[English version → README.en.md](README.en.md)**
 
+
+精简 agent 默认开启；设置 `AGY_BRIDGE_MINIMAL_AGENT=0` 可关闭，这与 agy-cli 的默认关闭有意不同。缺少逐调用记录时，工具轮次的缓存用量是有界估算，不能证明 Google 实际缓存命中；ACP 输出量包含一次思考量。
+
 ## 它解决什么问题
 
 - 已经订阅了 Antigravity（Google AI Pro/Ultra 附带），却还要为 Gemini / Claude API
@@ -69,17 +72,34 @@ Prompt caching 由 Google 后端决定，本插件让请求前缀尽量稳定：
 # 1. 安装插件（本地 checkout，尚未发布 npm）
 magpie plugin add ./opencode-antigravity-bridge
 
-# 2. 在 Magpie 中：Providers → Antigravity Bridge → Sign in
-#    选择「Sign in a new agy account with Google / 登录新的 agy 账号」
+# 2. 在 Magpie 中：Providers → Antigravity Bridge → 登录
+#    已接入时点击「添加另一个 Antigravity Bridge 账号」，再选择「新增 Google 账号」
 # 3. 填写名称（例如 work），在浏览器完成 Google 登录，
 #    把最终回调页面的完整 URL 或授权码粘贴回 Magpie
 # 4. 选择 work/<模型>（可选思考等级），开始对话
 ```
 
-已有默认 CLI 登录时，仍可选择「Sign in with the agy CLI」直接验证并使用。
+### 账号管理入口
+
+原生模式下，在 **Providers → Antigravity Bridge** 中，首次接入点「登录」，已有连接点
+「添加另一个 Antigravity Bridge 账号」。这两个入口都会先显示操作选项，打开它们不会立即开始 Google
+登录，也不会替换已有账号。选项名称随 Magpie 的界面语言显示：
+
+| 操作 | 用途 |
+| --- | --- |
+| 使用已有 CLI 登录 | 验证当前 agy CLI 的登录，不启动新的 Google 登录 |
+| 导入账号 | 将已有配置目录或 token 文件导入为一个新名称的账号 |
+| 批量导入账号 | 从 JSON 清单一次导入多个账号 |
+| 新增 Google 账号 | 在浏览器登录 Google，保存为一个新名称的账号 |
+
+新增和导入都会保留已有账号；名称已被使用时会拒绝操作，请换一个名称。
+插件中的 Google 账号按名称独立保存，使用 `<账号>/<模型>` 选择对应账号。
+Magpie 中保留一条 Bridge 连接记录；新增和导入完成后，宿主会按同一个 `agy`
+标记合并连接记录，不会因为新增 Google 账号而增加重复连接。
+WSL 模式仅支持使用发行版内已有的 CLI 登录，不提供命名账号的新增或导入选项。
 
 客户端侧零配置：不需要改全局 MCP 配置，插件为每个 agy 进程创建隔离的临时
-agent。ACP `clientInfo` 固定使用 `zed / 0.0.0`，兼容 agy 的非 Gemini 模型 allowlist。
+agent。ACP `clientInfo` 使用本包名称与版本；模型列表按账号探测实际可用型号。
 
 ## 它是怎么工作的
 
@@ -104,8 +124,8 @@ Google Code Assist 后端
 **切换模型 / 思考等级**：在 magpie 的模型选择器中切换即可，会话不中断，
 历史保留。
 
-**在 Magpie 中登录新账号**：在 Bridge 的登录列表选择「Sign in a new agy account
-with Google / 登录新的 agy 账号」，输入唯一名称。Magpie 打开 Google 授权链接；
+**在 Magpie 中登录新账号**：通过上面的账号管理入口选择「新增 Google 账号」，
+输入一个未占用的名称并提交后，Magpie 打开 Google 授权链接；
 完成后把浏览器最终停留的 `https://antigravity.google/oauth-callback?...` 完整地址
 粘贴回 Magpie（推荐，也可只粘贴页面显示的授权码）。当前官方 CLI 使用这个网页回调，
 需要手动粘贴，没有本机自动回调。远程 Magpie 也使用相同流程。
@@ -136,8 +156,8 @@ agy --gemini_dir=~/.config/magpie-agy-bridge/accounts/work
 （agy 自己的全局登录态，模型不带前缀）始终保留。要求 agy 支持 `--gemini_dir`
  且账号使用文件 token 登录态——钥匙串/ADC 登录态是整机全局的，无法按目录隔离。
 
-**导入账号**：除了在配置目录里登录，也可以导入已有的 agy 登录——在 Magpie 登录列表选
-"Import an agy account / 导入 agy 账号"（或批量导入），或用随包 CLI。路径是运行
+**导入账号**：除了在配置目录里登录，也可以导入已有的 agy 登录——在账号管理操作中选
+「导入账号」或「批量导入账号」，也可用随包 CLI。路径是运行
 Magpie 那台机器上的路径，两者调用同一个后端：
 
 ```sh
@@ -312,7 +332,11 @@ manifest；旧副本留到显式 `context disable --purge` 才删除。普通 `d
   `AGY_BRIDGE_START_TIMEOUT_MS` / `AGY_BRIDGE_TURN_TIMEOUT_MS` /
   `AGY_BRIDGE_TOOL_TIMEOUT_MS` 调整（正毫秒数）。只有非空正文/思考和真实工具调用/结果
   会更新模型进展；标题、状态、空 chunk、日志重试和 SSE 心跳不会续期。
-  工具结果等待使用独立期限。超时停止自有进程/工具资源并删除临时目录。
+  工具结果等待使用独立期限。生成工具参数期间 agy 没有可靠的进展信号，大型 `Write`
+  可能静默超过 120 秒；此类任务可在 Bridge 宿主环境设置
+  `AGY_BRIDGE_TURN_TIMEOUT_MS=600000`（10 分钟）并重启宿主，按实际任务选择有限值。
+  这是等待时间的权宜调整，不代表能检测到工具参数生成；客户端或网关仍可能更早超时。
+  超时停止自有进程/工具资源并删除临时目录。
 - **Argon 慢响应**：裸 `gemini-4-argon` 默认选 medium（目录存在该等级时），显式
   high/low 仍有效；其他 family 仍优先 high。此默认值不能修复 agy/Google 上游阻塞。
   流式响应附着回合后立即发送已有的 Anthropic `message_start`，等待输出时每 15s 发

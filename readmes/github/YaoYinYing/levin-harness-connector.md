@@ -22,9 +22,12 @@ have a row, a name and an icon for it.
 
 ## Install
 
-One command per platform. Each one adds the plugin to magpie, finds the copy
-magpie installed, pins which of Levin Harness's model entries magpie may write, and
-reloads the plugin. Running it again only re-pins.
+Lévin Harness ships for macOS and Windows; the installer adds the plugin to
+magpie, finds the copy magpie installed, pins which of Lévin's model entries
+magpie may write, and reloads the plugin. Running it again only re-pins.
+
+Linux has no Lévin build in the releases checked on 2026-11-12, so that section
+is preparation only.
 
 ### macOS
 
@@ -41,6 +44,11 @@ app's sandbox: macOS blocks a sandboxed process from reading Levin Harness's
 `config.json`.
 
 ### Windows
+
+Lévin Harness has a Windows build: the GitHub releases carry
+`Levin-Harness-<version>-x64.exe` next to the arm64 `.dmg`. Install that first,
+then run the script below — it has **not** been run on a real Windows machine
+yet, so treat it as reviewed-but-unproven.
 
 magpie on Windows is `magpie.exe` (the app) or `magpie-cli.exe` (the command line
 build). Neither is on PATH unless you put it there, so the script looks in the
@@ -69,24 +77,25 @@ Where it looks for magpie: PATH, then `%LOCALAPPDATA%\Programs\magpie\`,
 `%USERPROFILE%\magpie\`, and the release downloads in `%USERPROFILE%\Downloads\`.
 Point it somewhere else with `-Magpie "C:\path\to\magpie.exe"`.
 
-Levin Harness keeps its config at `%APPDATA%\levin-harness\config.json` on Windows
-(`pin-slot.mjs` looks there; `-List` prints what it found). **Use PowerShell, not
-Git Bash**, for the pin: only PowerShell gets the `%APPDATA%` path spelling Levin Harness
-itself uses. WSL is a separate machine to magpie — run the Windows script, not
-`install.sh`, if magpie runs on Windows.
+Levin Harness keeps its config at `%APPDATA%\levin-harness\config.json`; `pin-slot.mjs` looks
+there because the Windows `node.exe` reports `platform === "win32"`. Run the pin
+from **PowerShell** (or cmd) with the Windows Node — from Git Bash it also works,
+since Node still reports win32, but not through a WSL `node`, which reports
+linux. If magpie runs on Windows, use the Windows script: WSL is a separate
+machine to magpie.
 
 `-Link` writes `%LOCALAPPDATA%\Microsoft\WindowsApps\magpie.cmd`, which is already on
 PATH: no new folder to add, and it survives moving `magpie.exe`.
 
-### Linux (and WSL, when magpie itself runs there)
+### Linux (and WSL)
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/YaoYinYing/levin-harness-connector/main/install.sh | sh
-```
+No Lévin Harness build for Linux appears in the releases checked on 2026-11-12,
+so there is nothing to point at yet. `install.sh` already looks in
+`$XDG_CONFIG_HOME/levin-harness/config.json` and `~/.config/levin-harness/`,
+which is preparation, not support.
 
-Same script as macOS. Levin Harness's config is `$XDG_CONFIG_HOME/levin-harness/config.json`
-(or `~/.config/levin-harness/config.json`); `$LEVIN_HARNESS_CONFIG_DIR/config.json`
-wins over both, and the script honours it.
+WSL is a separate machine to magpie: a Lévin inside WSL is not the install
+magpie sees on Windows.
 
 ### What the installers pass on
 
@@ -101,6 +110,18 @@ wins over both, and the script honours it.
 
 With `curl … | sh` a flag goes to the script like this:
 `curl -fsSL …/install.sh | sh -s -- --link`.
+
+### Where each side keeps its files
+
+| | Lévin build | Lévin's `config.json` | magpie's plugins |
+| --- | --- | --- | --- |
+| macOS | arm64 `.dmg` | `~/Library/Application Support/Levin/config.json` | `~/.config/magpie/plugins/node_modules/` |
+| Windows | `x64.exe` | `%APPDATA%\levin-harness\config.json` (by Lévin's own code, unverified on Windows) | `%USERPROFILE%\.config\magpie\plugins\node_modules\` |
+| Linux | none in the releases checked | `$XDG_CONFIG_HOME/levin-harness/config.json`, else `~/.config/levin-harness/` (preparation) | `~/.config/magpie/plugins/node_modules/` |
+
+On every platform `$LEVIN_HARNESS_CONFIG_DIR/config.json` wins if it is set (Levin Harness
+honours it too), and `pin-slot.mjs --config <path>` overrides everything. When it
+cannot find the file, it prints every path it tried.
 
 ### Then, in the app
 
