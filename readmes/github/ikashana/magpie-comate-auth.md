@@ -74,6 +74,21 @@ agent ──OpenAI 格式──▶ magpie 网关 ──▶ 插件 auth.loader.fe
 **工具名映射**：Comate 内置工具（`Glob`/`Read`/`Bash`/`WebSearch`…）→ OpenAI 工具名
 （`search_files`/`read_file`/`terminal`/`web_search`…）。Hermes 执行完回传 `role:"tool"` 消息，
 插件再按 `tool_call_id` 找回原会话与原始 `name`/`params`，填进 `toolUseResults` 继续跑。
+**没映射的工具直接丢掉**（如 `Skill`），否则客户端会报 `Model generated invalid tool call: Skill`。
+
+**两种模式要分开用**：
+
+| 客户端带 `tools` | 用的 agentId | 行为 |
+|---|---|---|
+| 不带 | 8（Ask） | 纯问答，systemReminder 明确「没有工具、只回文本」 |
+| 带 | 1（Agent） | 允许调工具，`FUNCTION_CALL` 翻成 `tool_calls` |
+
+Agent 模式的模型**不管有没有 tools 都会自己调工具**，所以纯聊天必须走 Ask，否则正文是 `null`（工具调用被过滤光了）。
+
+**会话怎么认**（按优先级）：① `tool_call_id` 反查（工具回传那一轮）；② `prompt_cache_key` /
+`x-session-id` / `x-conversation-id` / `x-thread-id`；③ **兜底用上一轮 assistant 文本的 hash**
+（客户端下一轮必然把它原样带回来）。只有 ①② 的话，Hermes 不带 session key 时会每轮开新会话，
+用户看到的就是「我这边没有你之前的对话内容」。
 
 **多轮**：`conversationId` 就是会话标识，续会话时只发最后一句增量，历史留在服务端。
 认会话的优先级：

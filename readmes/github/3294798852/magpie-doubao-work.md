@@ -2,7 +2,7 @@
 
 [English](README.en.md)
 
-`magpie-doubao-work` 为 Magpie 提供豆包工作供应商 `doubaowork`，支持 Windows、Linux 和 macOS。通过豆包网页登录或账号 JSON 导入接入，提供模型发现、文本对话、流式输出、额度查询和每日签到。
+`magpie-doubao-work` 为 Magpie 提供豆包工作供应商 `doubaowork`，支持 Windows、Linux 和 macOS。通过豆包网页登录或账号 JSON 导入接入，提供模型发现、文本对话、function 工具调用、流式输出、额度查询和每日签到。
 
 ## 安装
 
@@ -36,7 +36,7 @@ magpie plugin login doubaowork
 
 图形桌面需要 Chrome 或 Edge，Linux 也可使用 Chromium。登录会打开独立临时浏览器窗口。完成扫码或手机验证后，插件核验账号身份并交给 Magpie 保存。
 
-无桌面的 Linux 可从 [豆包工作独立网关](https://github.com/3294798852/doubao-work-gateway) 导出账号 JSON，再导入 Magpie。
+无桌面的 Linux 可从 0.5.2 或更高版本的 [豆包工作独立网关](https://github.com/3294798852/doubao-work-gateway) 导出账号 JSON，再通过 Magpie 的账号导入入口导入。支持供应商账号导入的 Magpie 版本也可使用以下命令。
 
 ```sh
 magpie accounts import doubaowork /absolute/path/doubao-accounts.json --yes
@@ -46,7 +46,21 @@ magpie accounts import doubaowork /absolute/path/doubao-accounts.json --yes
 
 账号开关、代理、路由和签到在 Magpie 中管理。开启签到后，由 Magpie 调度，插件在领取请求前持久记录当日提交状态。结果待确认时，后续操作回查上游状态。
 
-上游要求人工验证时，账号进入暂停状态。使用同一个账号在豆包官网完成验证后，在 Magpie 重新登录该账号。
+### 710022004 与设备参数
+
+桌面接口使用 `device_id` 及对应的 `fp=verify_<device_id>`。插件优先使用账号快照中的 `deviceId`，其次使用 `device_id` Cookie，再读取本机豆包客户端 `Local State` 的 `aha.device.device_id`。文件读取结果缓存 60 秒。
+
+0.5.2 在登录、导入和旧账号首次加载时，把取得的设备上下文写入 Magpie 登录资料。迁移到其他电脑或无客户端的服务器后，继续使用账号携带的设备信息。每个账号的设备信息来自该用户自己的会话、客户端或账号备份。
+
+- Windows 使用 `%LOCALAPPDATA%\Doubao\User Data\Local State`。
+- Linux 使用 `$XDG_CONFIG_HOME/Doubao/Local State`，默认位于 `~/.config/Doubao/Local State`。
+- macOS 使用 `~/Library/Application Support/Doubao/Local State`。
+
+同时兼容上述路径中的 `DoubaoWork` 产品目录。无桌面客户端的 Linux 可使用包含 `session.deviceId` 的账号备份。0.5.2 网关会自动将设备信息写入导出文件，目标设备通过导入取得完整会话。设备号与登录凭据保存在用户本机。
+
+Windows 网关导出到隔离 Ubuntu 的真实账号迁移已通过，Ubuntu 网关和 Magpie Bun 宿主均返回 `OK`。迁移目标使用独立用户目录，网关的本机设备查询次数为零。详细范围见[验证记录](docs/verification.md)。
+
+官网和客户端正常、网关持续返回 `710022004` 时，检查插件版本和设备参数。修复参数后，已暂停账号需重新登录恢复。上游继续要求人工验证时，使用同一个账号在豆包官网完成验证，再在 Magpie 重新登录。
 
 ## 从网关内置插件迁移
 
@@ -63,7 +77,11 @@ magpie plugin use github:3294798852/magpie-doubao-work doubaowork
 
 支持 OpenAI 风格 `chat/completions` 文本接口、流式与非流式回复，以及 `reasoning_content` 透传。取消会中止上游请求，输出按消费者读取速度推进。
 
-工具调用、结构化输出、图片和工作流仍待实现。模型上下文与输出上限仍待补充。真实账号登录、模型调用和签到由账号持有人完成联调。
+0.6.0 支持客户端 function 工具，包含 `auto`、`none`、`required`、指定函数、并行开关和工具结果回传。两版共用工具协议转换与响应编码，纯工具回复使用 `finish_reason=tool_calls`。工具在客户端执行，工具回合在完整响应校验后输出调用事件。[排查与修复方案](docs/tool-calling.md)
+
+0.6.1 修复 SSE 提前结束、完整快照漏读和混合增量重复输出，并传递上游提供的标准 token 用量。[短回复排查与验收](docs/sse-output.md)
+
+严格约束解码 `strict=true`、自定义 grammar 工具、结构化输出、图片和工作流待实现。模型上下文与输出上限仍待补充。
 
 从源码验收可运行以下命令，需要 Node.js 22 或更高版本。
 
